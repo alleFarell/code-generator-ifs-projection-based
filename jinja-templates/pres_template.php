@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\\{{ namespace_prefix }};
+namespace App\Presentation\{{ namespace_prefix }};
 
 use App\Dto\FieldTypeEnum;
 use App\Presentation\BasePres;
