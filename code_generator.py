@@ -39,7 +39,7 @@ def map_type(json_type):
     # Proceed with mapping if json_type is not None
     type_mapping = {
         "STRING": "string",
-        "INTEGER": "int",
+        "NUMBER": "int",
         "BOOLEAN": "bool",
         # Add more mappings as needed
     }
