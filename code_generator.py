@@ -137,7 +137,7 @@ def generate_pres_from_json(json_data, class_name, namespace_prefix, presentatio
             "presentation": "true",
             "hidden": "false",
             "visible": "true",
-            "detail": "true",
+            "detail": "true" if item.get("PrimaryKey", "false") == "true" else "false",
             "onchange": "false",
             "onchangeLookup": "null",
             "lov": "false",
