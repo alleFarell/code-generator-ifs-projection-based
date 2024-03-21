@@ -2,6 +2,8 @@ import json
 from jinja2 import Environment, FileSystemLoader
 import re
 
+# Define List of Ids to be Excluded
+excluded_ids = ["OBJKEY", "OBJID", "OBJVERSION", "AnotherIdToExclude"]
 
 def camel_case(s):
     """Converts strings to camelCase."""
@@ -34,7 +36,7 @@ def map_type(json_type):
     """Maps JSON field types to PHP types, safely handling None values."""
     if json_type is None:
         # Default to string or any other type as needed
-        return "string"
+        return ""
     
     # Proceed with mapping if json_type is not None
     type_mapping = {
@@ -43,13 +45,13 @@ def map_type(json_type):
         "BOOLEAN": "bool",
         # Add more mappings as needed
     }
-    return type_mapping.get(json_type.upper(), "string").lower()
+    return type_mapping.get(json_type.upper(), "").lower()
 
 def map_field_type(json_type):
     type_mapping = {
         "STRING": "STRING",
         "NUMBER": "NUMBER",
-        "BOOLEAN": "BOOLEAN",
+        "BOOLEAN": "CHECKBOX",
         "DATE/DATE": "DATE",
         "DATE/DATETIME": "DATETIME",
     }
@@ -63,7 +65,7 @@ def generate_dto_from_json(json_data, class_name, namespace_prefix):
         'name': camel_case(prop["Id"]),
         'type': map_type(prop["Type"]),
         'default': default_value_for_type(map_type(prop["Type"]))
-    } for prop in data["value"]]
+    } for prop in data["value"] if prop["Id"] not in excluded_ids] # Skip this prop if its ID is in the list of excluded IDs
 
     # Set up Jinja2 environment with the templates directory
     env = Environment(loader=FileSystemLoader('jinja-templates'))
@@ -81,7 +83,7 @@ def generate_dto_from_json(json_data, class_name, namespace_prefix):
 
     return dto_class
 
-def generate_service_from_json(class_name, namespace_prefix):
+def generate_service_from_json(class_name, namespace_prefix, projection):
     """Generates a PHP Service class."""
     # Set up Jinja2 environment with the templates directory
     env = Environment(loader=FileSystemLoader('jinja-templates'))
@@ -92,12 +94,13 @@ def generate_service_from_json(class_name, namespace_prefix):
     # Render the template with context data
     service_class = template.render(
         class_name=class_name,
-        namespace_prefix=namespace_prefix
+        namespace_prefix=namespace_prefix,
+        projection=projection
     )
 
     return service_class
 
-def generate_controller_from_json(class_name, namespace_prefix):
+def generate_controller_from_json(class_name, namespace_prefix, menu_route):
     """Generates a PHP Controller class."""
     # Set up Jinja2 environment with the templates directory
     env = Environment(loader=FileSystemLoader('jinja-templates'))
@@ -108,7 +111,8 @@ def generate_controller_from_json(class_name, namespace_prefix):
     # Render the template with context data
     controller_class = template.render(
         class_name=class_name,
-        namespace_prefix=namespace_prefix
+        namespace_prefix=namespace_prefix,
+        menu_route=menu_route
     )
 
     return controller_class
@@ -124,6 +128,10 @@ def generate_pres_from_json(json_data, class_name, namespace_prefix, presentatio
     # Process each JSON object into the format required by initPresentationFieldContent
     presentation_fields = []
     for item in data["value"]:
+
+        if item['Id'].upper() in excluded_ids:
+          continue  # Skip this item if its ID is in the list of excluded IDs
+        
         field = {
             "id": snake_case(item["Id"]),
             "label": item["Label"] if item["Label"] else item["Id"],
@@ -156,8 +164,15 @@ def generate_pres_from_json(json_data, class_name, namespace_prefix, presentatio
         }
         presentation_fields.append(field)
 
+    # UnpackCheck Filter
+    unpack_check_fields = [{
+        "id": field["id"],
+        "insertable": "true" if field.get("insertable", "false") == "true" else "false",
+        "updateable": "true" if field.get("updateable", "false") == "true" else "false"
+    } for field in presentation_fields if field.get("insertable", "false") == "true" or field.get("updateable", "false") == "true"]
+
     # Set up Jinja2 environment with the templates directory
-    env = Environment(loader=FileSystemLoader('jinja-templates'))
+    env = Environment(loader=FileSystemLoader('jinja-templates'), extensions=['jinja2.ext.loopcontrols'])
 
     # Load the SERVICE template from the file
     template = env.get_template('pres_template.php')
@@ -171,7 +186,8 @@ def generate_pres_from_json(json_data, class_name, namespace_prefix, presentatio
         namespace_prefix=namespace_prefix,
         presentation_title=presentation_title,
         presentation_fields=presentation_fields,
-        form_layout_groups=form_layout_groups
+        form_layout_groups=form_layout_groups,
+        unpack_check_fields=unpack_check_fields
     )
 
     return pres_class

@@ -12,6 +12,7 @@ class {{ class_name }}Pres extends BasePres
         $this->initPresentationContent();
         $this->initFormLayoutContent();
         $this->initPresentationFieldContent();
+        $this->initUnpackCheck();
     }
 
     public function initPresentationContent(): void
@@ -28,7 +29,7 @@ class {{ class_name }}Pres extends BasePres
     public function initFormLayoutContent(): void
     {
         $this->formLayout = [
-            {% for group in form_layout_groups %}[{% for field in group %}"{{ field }}"{% if not loop.last %}, {% endif %}{% endfor %}],
+            {% for group in form_layout_groups %}[{% for field in group %}"{{ field }}"{% if not loop.last %}, {% endif %}{% endfor %}]{% if not loop.last %},{% endif %}
             {% endfor %}
         ];
     }
@@ -50,6 +51,14 @@ class {{ class_name }}Pres extends BasePres
                 "externalZoomContent" => {{ field.externalZoomContent }}
             ],
             {% endfor %}
+        ];
+    }
+
+    public function initUnpackCheck(): void
+    {
+        $this->unpackCheck = [
+            {% for field in unpack_check_fields %}["id" => "{{ field.id }}", "insert" => "{{ field.insertable }}", "update" => "{{ field.updateable }}"]{% if not loop.last %},{% endif %}
+            {% endfor %} 
         ];
     }
 }
