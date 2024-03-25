@@ -7,11 +7,42 @@ from consumable_api import authenticate_and_get_token, get_meta_data
 from code_generator import generate_dto_from_json, generate_controller_from_json, generate_service_from_json, generate_pres_from_json
 
 # Setup logging
-logging.basicConfig(filename='code_generation.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+log_file = 'code_generation.log'
+# Remove the log file if it already exists
+if os.path.exists(log_file):
+    os.remove(log_file)
+logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def pascal_to_kebab(s):
     """Convert a PascalCase string to kebab-case."""
     return '-'.join(re.sub('([a-z0-9])([A-Z])', r'\1-\2', s).lower().split())
+
+def snake_to_pascal(snake_case_str):
+    """Convert a snake_case string to PascalCase."""
+    words = snake_case_str.split('_')
+    capitalized_words = [word.capitalize() for word in words if word]
+    return ''.join(capitalized_words)
+
+def generate_class_name(value):
+    # Remove prefix "CTM_" if present
+    if value.startswith("CTM_"):
+        value = value[len("CTM_"):]
+
+    # Split the string by underscores and capitalize each word
+    words = value.split('_')
+    capitalized_words = [word.capitalize() for word in words]
+
+    # Join the words together without underscores
+    pascal_class_name = ''.join(capitalized_words)
+
+    # return class name in pascal
+    return pascal_class_name
+
+def generate_ifs_projection(table_name_str):
+    """Generate an IFS Projection from table_name."""
+    pascal_str = snake_to_pascal(table_name_str)
+    return f"{pascal_str}Handling.svc/{pascal_str}Set"
+
 
 def ensure_directory_exists(directory_path):
     """Ensure the directory exists. If not, create it."""
@@ -30,14 +61,19 @@ def generate_code_for_configuration(excel_path):
 
     # Read the Excel file for configurations
     df = pd.read_excel(excel_path)
+
+    classes_name = []
     
     # For each configuration, consume the API, generate code, and save to files
     for index, row in df.iterrows():
         presentation_title = row['MENU NAME']
         table_name = row['TABLE NAME']
-        class_name = row['CLASS NAME']
-        package_suffix = row['PACKAGE SUFFIX']
-        projection = row['IFS PROJECTION']
+        class_name = generate_class_name(table_name) # Generate class name based on table name
+        module_name = row['MODULE']
+        submodule_name = row['SUBMODULE']
+        package_suffix = f"{module_name}\\{submodule_name}"
+        projection = generate_ifs_projection(table_name)
+        classes_name.append(class_name)
 
         # Prepare the route builder
         route_builder_package = package_suffix.lower().replace("\\", "/").strip()
@@ -60,7 +96,7 @@ def generate_code_for_configuration(excel_path):
         pres_class_content = generate_pres_from_json(json_data, class_name, package_suffix, presentation_title)
 
         # Define the base directory to save the files
-        base_dir = "../generated_code"
+        base_dir = "./generated_code"
 
         # Ensure the directory exists before saving files
         ensure_directory_exists(base_dir)
@@ -81,7 +117,15 @@ def generate_code_for_configuration(excel_path):
 
         logging.info(f"Code generated for {class_name}")
 
+    # Separately Generate Route Registration
+    with open(f"{base_dir}/register_calls.txt", 'w') as f:
+        for class_name in classes_name:
+            f.write(f"{class_name}Controller::register();\n")
+
+    logging.info(f"Code generated for route registration")
+
 # Specify the path to your Excel file
+# excel_path = 'Template Mapping Menu AAL.xlsx'
 excel_path = 'Template Mapping Menu AAL.xlsx'
 
 # Start timing counter
