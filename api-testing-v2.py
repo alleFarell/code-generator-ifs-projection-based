@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-import os
 
 def authenticate_and_get_token():
     # url = "https://ifscloud.ifssi.co.id/auth/realms/isidev/protocol/openid-connect/token"
@@ -39,39 +38,41 @@ def get_meta_data(access_token, table_name):
 
     return response
 
-def log_results(table_name, response, summary):
-    with open("api_test_logs.txt", "a") as f:
-        try:
-            if response.status_code == 200:
-                data = response.json()
-                if data["value"]:
-                    f.write(f"Table: {table_name} - [ Passed ]\n")
-                    summary["Passed"] += 1
-                else:
-                    f.write(f"Table: {table_name} - Failed [ EMPTY RESPONSE ]\n")
-                    summary["Failed"] += 1
+def log_results(table_name, response, summary, results_list):
+    try:
+        if response.status_code == 200:
+            data = response.json()
+            if data["value"]:
+                results_list.append({"Table Name": table_name, "Status": "Passed"})
+                summary["Passed"] += 1
             else:
-                f.write(f"Table: {table_name} - Failed [ Status Code: {response.status_code} ]\n")
+                results_list.append({"Table Name": table_name, "Status": "Failed - EMPTY RESPONSE"})
                 summary["Failed"] += 1
-        except Exception as e:
-            f.write(f"Table: {table_name} - Failed [ PROJECTION ERROR ]\n")
+        else:
+            results_list.append({"Table Name": table_name, "Status": f"Failed - Status Code: {response.status_code}"})
             summary["Failed"] += 1
+    except Exception as e:
+        results_list.append({"Table Name": table_name, "Status": "Failed - PROJECTION ERROR"})
+        summary["Failed"] += 1
 
 if __name__ == "__main__":
     df = pd.read_excel('API Unit Test.xlsx')
     df = df.dropna().reset_index(drop=True).drop_duplicates(keep='first', ignore_index=True)
 
+    results_list = []  # Initialize an empty list to store result dictionaries
+
     access_token = authenticate_and_get_token()
 
-    if access_token:
-        if os.path.exists("api_test_logs.txt"):
-            os.remove("api_test_logs.txt")
+    summary = {"Passed": 0, "Failed": 0}
+    for table_name in df['TABLE NAMES']:
+        response = get_meta_data(access_token, table_name)
+        log_results(table_name, response, summary, results_list)
+    
+    results_df = pd.DataFrame(results_list)  # Convert the list of dictionaries to a DataFrame
 
-        summary = {"Passed": 0, "Failed": 0}
-        for table_name in df['TABLE NAMES']:
-            response = get_meta_data(access_token, table_name)
-            log_results(table_name, response, summary)
-        
-        with open("api_test_logs.txt", "a") as f:
-        # Write summary to log file
-          f.write(f"\nSummary:\nPassed APIs: {summary['Passed']}\nFailed APIs: {summary['Failed']}\n\n")
+    # Adding summary at the end of DataFrame
+    summary_df = pd.DataFrame([{"Table Name": "Summary", "Status": f"Passed: {summary['Passed']}, Failed: {summary['Failed']}"}])
+    results_df = pd.concat([results_df, summary_df], ignore_index=True)
+    
+    # Writing results to an Excel file
+    results_df.to_excel("api_test_results.xlsx", index=False)

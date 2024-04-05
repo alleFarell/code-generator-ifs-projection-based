@@ -23,7 +23,12 @@ def snake_to_pascal(snake_case_str):
     capitalized_words = [word.capitalize() for word in words if word]
     return ''.join(capitalized_words)
 
-def generate_class_name(value):
+def to_pascal_case(string):
+    words = string.split()
+    pascal_case = ''.join(word.capitalize() for word in words)
+    return pascal_case
+
+def generate_class_name(value, addl_info):
     # Remove prefix "CTM_" if present
     if value.startswith("CTM_"):
         value = value[len("CTM_"):]
@@ -35,6 +40,10 @@ def generate_class_name(value):
     # Join the words together without underscores
     pascal_class_name = ''.join(capitalized_words)
 
+    if not(pd.isna(addl_info)):
+        pascal_addl_info = to_pascal_case(addl_info)
+        pascal_class_name = f"{pascal_class_name}{pascal_addl_info}"
+
     # return class name in pascal
     return pascal_class_name
 
@@ -42,7 +51,6 @@ def generate_ifs_projection(table_name_str):
     """Generate an IFS Projection from table_name."""
     pascal_str = snake_to_pascal(table_name_str)
     return f"{pascal_str}Handling.svc/{pascal_str}Set"
-
 
 def ensure_directory_exists(directory_path):
     """Ensure the directory exists. If not, create it."""
@@ -68,7 +76,8 @@ def generate_code_for_configuration(excel_path):
     for index, row in df.iterrows():
         presentation_title = row['MENU NAME']
         table_name = row['TABLE NAME']
-        class_name = generate_class_name(table_name) # Generate class name based on table name
+        addl_info = row['ADDL INFO']
+        class_name = generate_class_name(table_name, addl_info) # Generate class name based on table name
         module_name = row['MODULE']
         submodule_name = row['SUBMODULE']
         package_suffix = f"{module_name}\\{submodule_name}"
@@ -126,7 +135,7 @@ def generate_code_for_configuration(excel_path):
 
 # Specify the path to your Excel file
 # excel_path = 'Template Mapping Menu AAL.xlsx'
-excel_path = 'Template Mapping Menu AAL.xlsx'
+excel_path = 'Test Mapping Menu AAL.xlsx'
 
 # Start timing counter
 start_time = time.time()
