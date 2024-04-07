@@ -15,6 +15,18 @@ class {{ class_name }}Pres extends BasePres
         $this->initUnpackCheck();
     }
 
+    /**
+     *      Default Presentation Content Property Template
+     */
+    // [
+    //     "id" => "", "title" => "", "table" => true, "form" => true, "tab" => false,
+    //     "readonly" => false, "autoPopulate" => true, "findByPrimaryKey" => false,
+    //     "tabContent" => [
+    //         ["id" => "", "name" => "", "visible" => true, "parentController" => null, "controller" => null]
+    //     ],
+    //     "toolbarButtonContent" => ["refresh" => true, "operation" => false, "create" => true, "edit" => true, "delete" => true],
+    //     "scannerButtonContent" => ["qrcode" => false, "barcode" => false]
+    // ]
     public function initPresentationContent(): void
     {
         $this->presentationContent = [
@@ -34,6 +46,31 @@ class {{ class_name }}Pres extends BasePres
         ];
     }
 
+    /**
+     *      Default Presentation Field Property Template.
+     */
+    // [
+    //     "id" => "", "label" => "",
+    //     "type" => FieldTypeEnum::STRING, "inputType" => FieldTypeEnum::STRING, "length" => 100,
+    //     "primaryKey" => false, "presentation" => true, "hidden" => false, "visible" => true,
+    //     "detail" => false, "mandatory" => false, "insertable" => true, "updateable" => true,
+    //     "onchange" => false, "onchangeLookup" => [],
+    //     "lov" => false, "lovDetail" => "", "referenceController" => null, "referenceService" => null, "referencePres" => null,
+    //     "iid" => false, "staticIidEnum" => null, "uploader" => false, "downloader" => false,
+    //     "thousandSeparator" => false, "decimalPrecision" => 2,
+    //     "internalZoomContent" => [
+    //         [
+    //             "id" => "", "name" => "", "sourceParam" => [], "targetParam" => [],
+    //             "zoomController" => null, "tab" => "", "openNewTab" => false
+    //         ]
+    //     ],
+    //     "externalZoomContent" => [
+    //         [
+    //             "id" => "", "name" => "", "sourceParam" => [], "targetParam" => [],
+    //             "zoomController" => "", "openNewTab" => false
+    //         ]
+    //     ]
+    // ],
     public function initPresentationFieldContent(): void
     {
         $this->presentationFields = [
@@ -49,8 +86,7 @@ class {{ class_name }}Pres extends BasePres
                 "thousandSeparator" => {{ field.thousandSeparator|lower }}, "decimalPrecision" => {{ field.decimalPrecision }},
                 "internalZoomContent" => {{ field.internalZoomContent }},
                 "externalZoomContent" => {{ field.externalZoomContent }}
-            ],
-            {% endfor %}
+            ],{% endfor %}
         ];
     }
 
