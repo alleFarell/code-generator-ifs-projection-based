@@ -204,7 +204,7 @@ class CodeGenerator:
             
 
             # Prepare the route builder
-            route_builder_package = package_suffix.lower().replace("\\", "/").strip()
+            route_builder_package = util.pascal_to_kebab(package_suffix).lower().replace("\\", "/").strip()
             route_builder_class = util.pascal_to_kebab(class_name.strip())
 
             # Form the Menu Route pattern based on package_suffix and class_name
