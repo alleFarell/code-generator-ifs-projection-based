@@ -1,0 +1,5 @@
+{
+    "excel_path": "Template Mapping Menu AAL.xlsx",
+    "log_file": "code_generation.log",
+    "base_dir": "./generated_code"
+}

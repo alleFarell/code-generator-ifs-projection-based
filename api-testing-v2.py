@@ -3,6 +3,16 @@ import pandas as pd
 
 def authenticate_and_get_token():
     # url = "https://ifscloud.ifssi.co.id/auth/realms/isidev/protocol/openid-connect/token"
+    # body = {
+    #     "client_id":"STO",
+    #     "client_secret":"FjvbcDWtNgf6Oo7kCGUyDHHeZGgKBPro",
+    #     "username":"ifsapp",
+    #     "password":"ifsapp",
+    #     "grant_type":"password",
+    #     "scope":"openid",
+    #     "response_type":"id_token"
+    # }
+
     url = "https://pyten7y-dev2.build.ifs.cloud/auth/realms/pyten7ydev2/protocol/openid-connect/token"
     body = {
         "client_id": "IFS_connect",
@@ -28,8 +38,8 @@ def authenticate_and_get_token():
         return None
 
 def get_meta_data(access_token, table_name):
-    # url = f"https://ifscloud.ifssi.co.id/main/ifsapplications/projection/v1/CtmMetaDataHandling.svc/Reference_GetMetaData?$filter=TableName eq '{table_name}'"
-    url = f"https://pyten7y-dev2.build.ifs.cloud/main/ifsapplications/projection/v1/CtmMetaDataHandling.svc/Reference_MetaData?$filter=TableName eq '{table_name}'"
+    url = f"https://ifscloud.ifssi.co.id/main/ifsapplications/projection/v1/CtmMetaDataHandling.svc/Reference_GetMetaData?$filter=TableName eq '{table_name}'"
+    # url = f"https://pyten7y-dev2.build.ifs.cloud/main/ifsapplications/projection/v1/CtmMetaDataHandling.svc/Reference_MetaData?$filter=TableName eq '{table_name}'"
     headers = {
         "Authorization": f"Bearer {access_token}",
     }
