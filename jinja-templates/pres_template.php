@@ -5,6 +5,20 @@ namespace App\Presentation\{{ namespace_prefix }};
 use App\Dto\FieldTypeEnum;
 use App\Presentation\BasePres;
 
+{%- if lov_iid_dict["lov"] %}
+{% for lov_class in lov_iid_dict["lov"] %}
+use App\Services\Lov\{{ lov_class }}Service;
+use App\Http\Controllers\Lov\{{ lov_class }}Controller;
+use App\Presentation\Lov\{{ lov_class }}Pres;
+{% endfor %}
+{%- endif %}
+
+{%- if lov_iid_dict["iid"] %}
+{% for iid_class in lov_iid_dict["iid"] %}
+use App\Dto\Iid\{{ iid_class }}Enum;
+{% endfor %}
+{%- endif %}
+
 class {{ class_name }}Pres extends BasePres
 {
     public function __construct()
@@ -93,7 +107,7 @@ class {{ class_name }}Pres extends BasePres
     public function initUnpackCheck(): void
     {
         $this->unpackCheck = [
-            {% for field in unpack_check_fields %}["id" => "{{ field.id }}", "insert" => "{{ field.insertable }}", "update" => "{{ field.updateable }}"]{% if not loop.last %},{% endif %}
+            {% for field in unpack_check_fields %}["id" => "{{ field.id }}", "insert" => {{ field.insertable }}, "update" => {{ field.updateable }}]{% if not loop.last %},{% endif %}
             {% endfor %} 
         ];
     }

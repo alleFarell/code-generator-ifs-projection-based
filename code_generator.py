@@ -78,19 +78,42 @@ class CodeGenerator:
         )
         return controller_class
 
-    def generate_pres_from_json(self, json_data, class_name, namespace_prefix, presentation_title="PresentationTitleExample"):
+    def generate_pres_from_json(self, json_data, class_name, namespace_prefix, presentation_title="PresentationTitleExample", is_real_class=True):
         properties = [prop["Id"] for prop in json_data["value"] if prop["Id"] not in self.excluded_ids]
         form_layout_properties = [util.upper_to_lower_snake(prop) for prop in properties]
         
         presentation_fields = []
+        lov_iid_dict = {"lov": [], "iid": []}
         for item in json_data["value"]:
             if item['Id'].upper() in self.excluded_ids:
                 continue
+            
+            # Define LOV reference (only if LOV exist)
+            lov_class_name = f"{self.generate_class_name(item.get('ReferenceTable', "null"), None)}Lov" if item.get("Lov", "false") == 'true' else "null"
+            ref_controller = f"{lov_class_name}Controller::class" if (item.get("Lov", "false") == 'true') and (is_real_class) else "null"
+            ref_service = f"{lov_class_name}Service::class" if (item.get("Lov", "false") == 'true') and (is_real_class) else "null"
+            ref_pres = f"{lov_class_name}Pres::class" if (item.get("Lov", "false") == 'true') and (is_real_class) else "null"
+
+            # Define IID reference (only if IID exist)
+            iid_class_name = self.generate_class_name(item.get("Id", "null"), None) if (item.get("Iid", "false") == 'true') and (is_real_class) else "null"
+            static_iid_enum = f"{iid_class_name}Enum::class" if (item.get("Iid", "false") == 'true') and (is_real_class) else "null"
+            
+            # Put LOV and IID list for Importing classes
+            if lov_class_name != "null" and (item.get("Lov", "false") == 'true') and (is_real_class):
+                lov_iid_dict["lov"].append(lov_class_name)
+            if iid_class_name != "null" and (item.get("Iid", "false") == 'true') and (is_real_class):
+                lov_iid_dict["iid"].append(iid_class_name)
+
+            # Input Type Override for IID Dropdown
+            field_input_type = f"FieldTypeEnum::{self.map_field_type(item.get('Type', 'STRING'))}"
+            if (item.get("Iid", "false") == 'true') and (is_real_class):
+                field_input_type = f"FieldTypeEnum::DROPDOWN"
+
             field = {
                 "id": util.upper_to_lower_snake(item["Id"]),
                 "label": item["Label"] if item["Label"] else item["Id"],
                 "type": f"FieldTypeEnum::{self.map_field_type(item.get('Type', 'STRING'))}",
-                "inputType": f"FieldTypeEnum::{self.map_field_type(item.get('Type', 'STRING'))}",
+                "inputType": field_input_type,
                 "length": item["Length"] if item.get("Type") == "STRING" and item.get("Length") else 100,
                 "primaryKey": "true" if item.get("PrimaryKey", "false") == "true" else "false",
                 "mandatory": "true" if item.get("Mandatory", "false") == "true" else "false",
@@ -102,13 +125,13 @@ class CodeGenerator:
                 "detail": "true" if item.get("PrimaryKey", "false") == "true" else "false",
                 "onchange": "false",
                 "onchangeLookup": "null",
-                "lov": "false",
-                "lovDetail": "null",
-                "referenceController": "null",
-                "referenceService": "null",
-                "referencePres": "null",
-                "iid": "false",
-                "staticIidEnum": "null",
+                "lov": "true" if (item.get("Lov", "false") == 'true') and (is_real_class) else "false",
+                "lovDetail": f'"{util.upper_to_lower_snake(item["Id"])}"' if (item.get("Lov", "false") == 'true') and (is_real_class) else "null",
+                "referenceController": ref_controller,
+                "referenceService": ref_service,
+                "referencePres": ref_pres,
+                "iid": "true" if (item.get("Iid", "false") == "true") and (is_real_class) else "false",
+                "staticIidEnum": static_iid_enum,
                 "uploader": "false",
                 "downloader": "false",
                 "thousandSeparator": "false",
@@ -132,7 +155,8 @@ class CodeGenerator:
             presentation_title=presentation_title,
             presentation_fields=presentation_fields,
             form_layout_groups=[form_layout_properties[i:i+4] for i in range(0, len(form_layout_properties), 4)],
-            unpack_check_fields = unpack_check_fields
+            unpack_check_fields = unpack_check_fields,
+            lov_iid_dict=lov_iid_dict
         )
         return pres_class
     
@@ -176,7 +200,132 @@ class CodeGenerator:
         except Exception as e:
             results_list.append({"Table Name": table_name, "Status": "Failed - PROJECTION ERROR"})
             summary["Failed"] += 1
+
+    def fetch_lov_iid(self, lov_info, iid_info, json_data):
+        for item in json_data["value"]:
+            if item["Lov"] == "true":
+                lov_info.append({
+                    "parentTable": item['TableName'],
+                    "field": item["Id"],
+                    "fieldLabel": item["Label"],
+                    "referenceApiUrl": item.get("ReferenceApiUrl"),
+                    "referenceFilter": item.get("ReferenceFilter"),
+                    "referenceTable": item.get("ReferenceTable")
+                })
+            if item["Iid"] == "true":
+                iid_info.append({
+                    "parentTable": item['TableName'],
+                    "field": item["Id"],
+                    "fieldLabel": item["Label"],
+                    "iidObjectClient": item.get("IidObjectClient"),
+                    "iidObjectDb": item.get("IidObjectDb"),
+                })
+        return lov_info, iid_info
     
+    def split_ifs_enum(self, ifs_enum_values):
+        result_list = ifs_enum_values.rstrip('^').split('^')
+        return result_list
+
+    def generate_lov_classes(self, access_token, lov_info, base_dir):
+
+        ensure_directory_exists(f"{base_dir}/lov/dto")
+        ensure_directory_exists(f"{base_dir}/lov/service")
+        ensure_directory_exists(f"{base_dir}/lov/controller")
+        ensure_directory_exists(f"{base_dir}/lov/pres")
+        lov_class_set = set()
+
+        for lov in lov_info:
+            parent_table = lov["parentTable"]
+            package_suffix = "Lov"
+            ref_table = lov["referenceTable"]
+            ref_url = lov["referenceApiUrl"]
+            class_name = f"{self.generate_class_name(ref_table, "")}Lov"
+            # class_name = f"Lov{class_name}"
+            lov_projection = ref_url.replace(f"{self.config["base_url"]}/", "")
+            lov_pres_title = f"{util.pascal_to_string(self.generate_class_name(ref_table, ""))}"
+
+            # Prepare the route builder
+            route_lov_package = util.pascal_to_kebab(package_suffix).lower().strip()
+            route_lov_class = util.pascal_to_kebab(class_name.strip())
+
+            # Form the Menu Route pattern based on package_suffix and class_name
+            menu_route = f"/{route_lov_package}/{route_lov_class}"
+
+            # Placeholder for actual data fetching logic if needed
+            try:
+                # Getting metadata from projections
+                response = get_meta_data(access_token, ref_table)
+                json_data = response.json()
+                if json_data is None:
+                    logging.error(f"Failed to get data for LOV table: {ref_table} IN {parent_table}")
+                    continue
+                elif json_data['value'] == []:
+                    logging.error(f"Empty data for LOV table: {ref_table} IN {parent_table}")
+                    continue
+
+                logging.info(f"Retrieved metadata for LOV table: {ref_table} IN {parent_table}")
+
+            except Exception as e:
+                logging.error(f"An error occurred while getting metadata for LOV table {ref_table} IN {parent_table}: {str(e)}")
+                # Optionally, you may want to handle the error further, such as retrying the operation or logging additional information.
+                continue
+
+            # Generate DTO, Service, Controller, Presentation for LOV
+            dto_content = self.generate_dto_from_json(json_data, class_name, package_suffix)
+            service_content = self.generate_service_from_json(class_name, package_suffix, lov_projection)
+            controller_content = self.generate_controller_from_json(class_name, package_suffix, menu_route)
+            pres_content = self.generate_pres_from_json(json_data, class_name, package_suffix, lov_pres_title, is_real_class=False)
+
+            # Write DTO, Service, Controller, Presentation Files for LOV
+            with open(f"{base_dir}/lov/dto/{class_name}Dto.php", 'w') as file:
+                file.write(dto_content)
+            with open(f"{base_dir}/lov/service/{class_name}Service.php", 'w') as file:
+                file.write(service_content)
+            with open(f"{base_dir}/lov/controller/{class_name}Controller.php", 'w') as file:
+                file.write(controller_content)            
+            with open(f"{base_dir}/lov/pres/{class_name}Pres.php", 'w') as file:
+                file.write(pres_content)
+            # Log success
+            logging.info(f"LOV class generated for {class_name}")
+
+            # Append lov class name to a list
+            lov_class_set.add(class_name)
+
+            # END OF LOOP #
+        
+        # Register the LOV class route Separately
+        for lov_name in lov_class_set:
+            print("Unique class name:", lov_name)
+            with open(f"{base_dir}/register_calls_lov.txt", 'a') as f:
+                f.write(f"{lov_name}Controller::register();\n")
+            # logging.info(f"Generated route registration for LOV class {lov_name}")
+
+    def generate_iid_enum(self, iid_info, base_dir):
+
+        ensure_directory_exists(f"{base_dir}/iid")
+
+        for iid_item in iid_info:
+            if iid_item:
+                iid_class_name = self.generate_class_name(iid_item["field"], None)
+                iid_db_value = [util.format_enum_case(item) for item in self.split_ifs_enum(iid_item["iidObjectDb"])]
+                iid_client_value = self.split_ifs_enum(iid_item["iidObjectClient"])
+                
+                # Pairing DB and client values
+                iid_pairs = list(zip(iid_db_value, iid_client_value))
+
+                # Setup Jinja2 Enum Template
+                template = self.env.get_template('enum_template.php')
+
+                # Render the template with data
+                enum_content = template.render(iid_class_name=iid_class_name, pairs=iid_pairs)
+
+                # Write Enum Files for IID
+                with open(f"{base_dir}/iid/{iid_class_name}Enum.php", 'w') as file:
+                    file.write(enum_content)
+                
+                # Log success
+                logging.info(f"IID Enum generated for {iid_class_name}")
+
     def generate(self):
         # Authenticate and get token
         access_token = authenticate_and_get_token()
@@ -191,6 +340,22 @@ class CodeGenerator:
         api_results_list = []
         summary = {"Passed": 0, "Failed": 0}
 
+        base_dir = self.config['base_dir']
+        # Ensure the directory exists before saving files
+        ensure_directory_exists(base_dir)
+        ensure_directory_exists(f"{base_dir}/dto")
+        ensure_directory_exists(f"{base_dir}/service")
+        ensure_directory_exists(f"{base_dir}/controller")
+        ensure_directory_exists(f"{base_dir}/pres")
+
+        # Contain All Lov info
+        lov_info_all = []
+        iid_info_all = []
+
+        # Check For Distinct table_name in Core/Main class  
+        # (Only generate LOV class based on distinct table_name main class)
+        dist_table_name = ()
+
         # For each configuration, consume the API, generate code, and save to files
         for index, row in df.iterrows():
             presentation_title = row['MENU NAME']
@@ -200,7 +365,13 @@ class CodeGenerator:
             module_name = row['MODULE']
             submodule_name = row['SUBMODULE']
             package_suffix = f"{module_name}\\{submodule_name}"
-            projection = self.generate_ifs_projection(table_name)
+
+            try:
+                projection = row['SPECIFIC URL']
+                if pd.isnull(projection):
+                    projection = self.generate_ifs_projection(table_name)
+            except KeyError:
+                projection = self.generate_ifs_projection(table_name)
             
 
             # Prepare the route builder
@@ -226,6 +397,7 @@ class CodeGenerator:
 
             except Exception as e:
                 logging.error(f"An error occurred while getting metadata for table {table_name}: {str(e)}")
+                self.api_log_results(table_name, response, summary, api_results_list)
                 # Optionally, you may want to handle the error further, such as retrying the operation or logging additional information.
                 # Depending on the situation, you might also want to continue the loop or raise the exception.
                 continue
@@ -239,14 +411,6 @@ class CodeGenerator:
             controller_class_content = self.generate_controller_from_json(class_name, package_suffix, menu_route)
             pres_class_content = self.generate_pres_from_json(json_data, class_name, package_suffix, presentation_title)
 
-            base_dir = self.config['base_dir']
-            # Ensure the directory exists before saving files
-            ensure_directory_exists(base_dir)
-            ensure_directory_exists(f"{base_dir}/dto")
-            ensure_directory_exists(f"{base_dir}/service")
-            ensure_directory_exists(f"{base_dir}/controller")
-            ensure_directory_exists(f"{base_dir}/pres")
-
             # Save the generated code to files
             with open(f"{base_dir}/dto/{class_name}Dto.php", "w") as file:
                 file.write(dto_class_content)
@@ -259,19 +423,36 @@ class CodeGenerator:
 
             logging.info(f"Code generated for {class_name}")
 
-            # Register the class immediately
+            # Register the class route
             with open(f"{base_dir}/register_calls.txt", 'a') as f:
                 f.write(f"{class_name}Controller::register();\n")
-
+            logging.info(f"Generated route registration for {class_name}")
 
             # Inside the loop after generating code for each class
             with open(f"{base_dir}/navigator_registration.txt", 'a') as f:
                 f.write(f"$ExampleNavigatorDto->addSubMenu(\n")
                 f.write(f"\t$this->addNavigator(\"{route_builder_class}\", \"{presentation_title}\", $ExampleNavigatorDto->getRoute() . \"/{route_builder_class}\", null)\n")
                 f.write(f");\n")
+            logging.info(f"Generated Navigator for {class_name}")
 
+            # Generated LOV Separately
+            lov_info = []
+            iid_info = []
+            lov_info, iid_info = self.fetch_lov_iid(lov_info, iid_info, json_data)
 
+            # Store LOV and IID if exist
+            if lov_info:
+                lov_info_all.extend(lov_info)
+            if iid_info:
+                iid_info_all.extend(iid_info)
+                
             # END OF LOOP #
+
+        # Generate LOV and IID separately if exist
+        if lov_info_all:
+            self.generate_lov_classes(access_token, lov_info_all, base_dir)
+        if iid_info_all:
+            self.generate_iid_enum(iid_info_all, base_dir)
         
         # Code Generator Reporting
         results_df = pd.DataFrame(api_results_list)  # Convert the list of dictionaries to a DataFrame
@@ -283,10 +464,4 @@ class CodeGenerator:
         # Writing results to an Excel file
         results_df.to_excel(f"{base_dir}/generator_report.xlsx", index=False)
 
-        # # Separately Generate Route Registration
-        # with open(f"{base_dir}/register_calls.txt", 'w') as f:
-        #     for class_name in classes_name:
-        #         f.write(f"{class_name}Controller::register();\n")
-
-        # logging.info(f"Code generated for route registration")
         

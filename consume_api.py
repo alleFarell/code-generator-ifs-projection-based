@@ -38,7 +38,7 @@ def authenticate_and_get_token():
         "client_id":"IFS_connect",
         "client_secret":"CntEQOfknwA9OfxS8yNd",
         "username":"ifsapp",
-        "password":"aDMQNSH9MU5QeIac4aEvE9btb7uE42",
+        "password":"ifsapp",
         "grant_type":"password",
         "scope":"openid",
         "response_type":"id_token"

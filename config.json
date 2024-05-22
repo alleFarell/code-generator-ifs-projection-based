@@ -1,5 +1,6 @@
 {
     "excel_path": "Template Mapping Menu AAL.xlsx",
     "log_file": "code_generation.log",
-    "base_dir": "./generated_code"
+    "base_dir": "./generated_code",
+    "base_url": "https://pyten7y-dev1.build.ifs.cloud/main/ifsapplications/projection/v1"
 }

@@ -17,6 +17,9 @@ def string_to_pascal(string):
     pascal_case = ''.join(word.capitalize() for word in words)
     return pascal_case
 
+def pascal_to_string(s):
+    return re.sub(r'(?<!^)(?=[A-Z])', ' ', s)
+
 #2
 def snake_to_camel(s):
     """Converts snake case strings to camelCase."""
@@ -35,3 +38,6 @@ def upper_to_lower_snake(s):
     """Converts strings from UPPER_CASE to snake_case."""
     # If the string is already in UPPER_CASE, just convert it to lower case
     return s.lower()
+
+def format_enum_case(name):
+    return name.replace(" ", "_").upper()
